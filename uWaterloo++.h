@@ -21,6 +21,14 @@ struct Location {
 	std::string postalCode;
 };
 
+
+struct ExamTime {
+	std::string date;
+	std::string start;
+	std::string end;
+	std::string location;
+};
+
 // API Classes:
 class EventsParser;
 class Event;
@@ -126,20 +134,27 @@ public:
 };
 
 
-class Course : public Parser {
+// TODO: schedule endpoint
+class Course : public Parser { 
 	  std::string id;
 	  std::string subject;
 	  std::string catalog;
 	  std::string title;
+	  std::string preReqJson;
+	  std::string examJson;
+	  void setupPreReq();
+	  void setupExamSch();
 public:
 	Course(std::string courseJson, std::string apiKey);
+	std::string getPrerequisites();
+	std::vector<std::pair<int, std::string> > getPrerequisitesParsed(); // int: number of courses required, string: list of required courses
+	std::map<std::string, ExamTime> getExamSchedule(); // string: section, ExamTime: time & location
 	SpecificCourse getMoreDetails(); // get more info for this course
 	// getters
 	std::string getId();
-	std::string getSubjectAndCatalog(); // eg. CS 135
+	std::string getSubjectAndCatalog(); // eg. CS 135	
 	std::string getTitle();
 };
-
 
 
 class SpecificCourse : public Course {

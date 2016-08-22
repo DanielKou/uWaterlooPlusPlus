@@ -365,10 +365,125 @@ Course::Course(std::string courseJson, std::string apiKey) : Parser(courseJson, 
 }
 
 
-// getters
-std::string Course::getId() { return id; }
-std::string Course::getSubjectAndCatalog() { return subject + " " + catalog; }
-std::string Course::getTitle() { return title; }
+void Course::setupPreReq(){
+	// singleton (only request once)
+	if (preReqJson == "") {
+		CURL* tempCurl = curl_easy_init();
+		if (tempCurl) {
+			curl_easy_setopt(tempCurl, CURLOPT_WRITEFUNCTION, writeCallback);
+			curl_easy_setopt(tempCurl, CURLOPT_WRITEDATA, &preReqJson);
+			curl_easy_setopt(tempCurl, CURLOPT_URL, ("https://api.uwaterloo.ca/v2/courses/"
+				+ subject + std::string("/") + catalog
+				+ std::string("/prerequisites.json?key=") + apiKey).c_str());
+			curl_easy_perform(tempCurl);
+			// always cleanup
+			curl_easy_cleanup(tempCurl);
+		}
+	}
+}
+
+
+void Course::setupExamSch() {
+	// singleton (only request once)
+	if (examJson == "") {
+		CURL* tempCurl = curl_easy_init();
+		if (tempCurl) {
+			curl_easy_setopt(tempCurl, CURLOPT_WRITEFUNCTION, writeCallback);
+			curl_easy_setopt(tempCurl, CURLOPT_WRITEDATA, &examJson);
+			curl_easy_setopt(tempCurl, CURLOPT_URL, ("https://api.uwaterloo.ca/v2/courses/"
+				+ subject + std::string("/") + catalog
+				+ std::string("/examschedule.json?key=") + apiKey).c_str());
+			curl_easy_perform(tempCurl);
+			// always cleanup
+			curl_easy_cleanup(tempCurl);
+		}
+	}
+}
+
+
+std::string Course::getPrerequisites() {
+	setupPreReq();
+
+	json j;
+	std::stringstream ss;
+	ss << preReqJson;
+	ss >> j;
+
+	return nullCheck(j["data"]["prerequisites"]);
+}
+
+
+std::vector<std::pair<int, std::string> > Course::getPrerequisitesParsed() {
+	std::vector<std::pair<int, std::string> > v;
+
+	setupPreReq();
+
+	json j;
+	std::stringstream ss;
+	ss << preReqJson;
+	ss >> j;
+	j = j["data"]["prerequisites_parsed"];
+	
+	if (!j.is_null() && j.dump() != "\"\"") {
+		int size = j.size();
+		if (j[0].is_number()) { // just 1 prereq obj
+			int num = j[0];
+			std::string courses;
+			for (int i = 1; i < size; i++) {
+				if (i != 1) courses += ",";
+				courses += j[i].dump();
+			}
+			v.push_back(std::make_pair(num, courses));
+		}
+		else {
+			for (int i = 0; i < size; i++) {
+				json preReq = j[i];
+				int num = preReq[0];
+				std::string courses = "";
+				for (int j = 1; j < preReq.size(); j++) {
+					if (j != 1) courses += ",";
+					courses += preReq[j].dump();
+				}
+
+				v.push_back(std::make_pair(num, courses));
+			}
+		}
+	}
+	return v;
+}
+
+
+std::map<std::string, ExamTime> Course::getExamSchedule() {
+	std::map<std::string, ExamTime> m;
+
+	setupExamSch();
+
+	json j;
+	std::stringstream ss;
+	ss << examJson;
+	ss >> j;
+	j = j["data"];
+
+	if (j.size() != 0) {
+		j = j["sections"];
+
+		int size = j.size();
+		for (int i = 0; i < size; i++) {
+			json exam = j[i];
+			ExamTime temp;
+
+			std::string section = nullCheck(exam["section"]);
+			temp.date = nullCheck(exam["date"]);
+			temp.start = nullCheck(exam["start_time"]);
+			temp.end = nullCheck(exam["end_time"]);
+			temp.location = nullCheck(exam["location"]);
+
+			m.insert(std::make_pair(section, temp));
+		}
+	}
+
+	return m;
+}
 
 
 SpecificCourse Course::getMoreDetails() {
@@ -393,8 +508,10 @@ SpecificCourse Course::getMoreDetails() {
 }
 
 
-
-
+// getters
+std::string Course::getId() { return id; }
+std::string Course::getSubjectAndCatalog() { return subject + " " + catalog; }
+std::string Course::getTitle() { return title; }
 
 
 
@@ -404,6 +521,7 @@ SpecificCourse::SpecificCourse(std::string courseJson, std::string apiKey) : Cou
 	units = (parser["units"].is_number()) ? parser["units"] : 0;
 	description = nullCheck(parser["description"]);
 
+	// comma delimited terms
 	int size = parser["terms_offered"].size();
 	for (int i = 0; i < size; i++) {
 		if (i != 0) {
@@ -412,6 +530,7 @@ SpecificCourse::SpecificCourse(std::string courseJson, std::string apiKey) : Cou
 		termsOffered += nullCheck(parser["terms_offered"][i]);
 	}
 
+	// comma delimited instruction types
 	size = parser["instructions"].size();
 	for (int i = 0; i < size; i++) {
 		if (i != 0) {
@@ -423,14 +542,6 @@ SpecificCourse::SpecificCourse(std::string courseJson, std::string apiKey) : Cou
 	url = nullCheck(parser["url"]);
 	academicLevel = nullCheck(parser["academic_level"]);
 }
-
-
-// getters
-std::string SpecificCourse::getDescription() { return description; }
-std::string SpecificCourse::getTermsOffered() { return termsOffered; }
-std::string SpecificCourse::getInstructionTypes() { return instructions; }
-std::string SpecificCourse::getUrl() { return url; }
-std::string SpecificCourse::getAcademicLevel() { return academicLevel; }
 
 
 bool SpecificCourse::isOffered(std::string term) {
@@ -452,3 +563,11 @@ bool SpecificCourse::isOffered(std::string term) {
 
 	return false;
 }
+
+
+// getters
+std::string SpecificCourse::getDescription() { return description; }
+std::string SpecificCourse::getTermsOffered() { return termsOffered; }
+std::string SpecificCourse::getInstructionTypes() { return instructions; }
+std::string SpecificCourse::getUrl() { return url; }
+std::string SpecificCourse::getAcademicLevel() { return academicLevel; }

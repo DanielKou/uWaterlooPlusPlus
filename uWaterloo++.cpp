@@ -453,6 +453,55 @@ std::vector<std::pair<int, std::string> > Course::getPrerequisitesParsed() {
 }
 
 
+std::map<std::string, CourseSchedule> Course::getSchedule() {
+	std::map<std::string, CourseSchedule> m;
+
+	CURL* tempCurl = curl_easy_init();
+	std::string result;
+
+	/*std::string url= "https://api.uwaterloo.ca/v2/courses/"
+		+ subject + std::string("/") + catalog
+		+ std::string("/schedule.json?key=") + apiKey).c_str() + std::string("&term=1169");*/
+	
+
+	if (tempCurl) {
+		curl_easy_setopt(tempCurl, CURLOPT_WRITEFUNCTION, writeCallback);
+		curl_easy_setopt(tempCurl, CURLOPT_WRITEDATA, &result);
+		curl_easy_setopt(tempCurl, CURLOPT_URL, ("https://api.uwaterloo.ca/v2/courses/"
+			+ subject + std::string("/") + catalog
+			+ std::string("/schedule.json?key=") + apiKey + std::string("&term=1169")).c_str());
+		curl_easy_perform(tempCurl);
+		// always cleanup
+		curl_easy_cleanup(tempCurl);
+	}
+
+	// TODO: Why does this happen???
+	size_t found = result.find_last_of("}");
+	result = result.substr(0, found + 1);
+
+	json j;
+	std::stringstream ss;
+	ss << result;
+	ss >> j;
+	j = j["data"];
+
+	int size = j.size();
+	for (int i = 0; i < size; i++) {
+		std::string section = j[i]["section"];
+		CourseSchedule course;
+		json classInfo = j[i]["classes"][0];
+		course.start = nullCheck(classInfo["date"]["start_time"]);
+		course.end = nullCheck(classInfo["date"]["end_time"]);
+		course.weekdays = nullCheck(classInfo["date"]["weekdays"]);
+		course.instructor = "hello";
+		course.location = nullCheck(classInfo["location"]["building"]) + " " + nullCheck(classInfo["location"]["room"]);
+
+		m.insert(std::make_pair(section, course));
+	}
+	return m;
+}
+
+
 std::map<std::string, ExamTime> Course::getExamSchedule() {
 	std::map<std::string, ExamTime> m;
 

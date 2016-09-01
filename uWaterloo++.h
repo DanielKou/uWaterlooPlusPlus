@@ -29,6 +29,16 @@ struct ExamTime {
 	std::string location;
 };
 
+
+struct CourseSchedule {
+	std::string start;
+	std::string end;
+	std::string weekdays;
+	std::string location;
+	std::string instructor;
+
+};
+
 // API Classes:
 class EventsParser;
 class Event;
@@ -148,6 +158,7 @@ public:
 	Course(std::string courseJson, std::string apiKey);
 	std::string getPrerequisites();
 	std::vector<std::pair<int, std::string> > getPrerequisitesParsed(); // int: number of courses required, string: list of required courses
+	std::map<std::string, CourseSchedule> getSchedule(); // string: section #, CourseSchedule: schedule/location/instructor
 	std::map<std::string, ExamTime> getExamSchedule(); // string: section, ExamTime: time & location
 	SpecificCourse getMoreDetails(); // get more info for this course
 	// getters
